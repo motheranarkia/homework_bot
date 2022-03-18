@@ -1,16 +1,23 @@
-...
+import time
+import logging
+import os
+import requests
+import telegram
+
+from http import HTTPStatus
+from dotenv import load_dotenv
+from telegram import Bot
 
 load_dotenv()
-
-
-PRACTICUM_TOKEN = ...
-TELEGRAM_TOKEN = ...
-TELEGRAM_CHAT_ID = ...
+PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
+bot = Bot(token=TELEGRAM_TOKEN)
 
 HOMEWORK_STATUSES = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
@@ -20,63 +27,87 @@ HOMEWORK_STATUSES = {
 
 
 def send_message(bot, message):
-    ...
+    """отправляет сообщение в Telegram чат"""
+    return bot.send_message(TELEGRAM_CHAT_ID, message)
 
 
 def get_api_answer(current_timestamp):
-    timestamp = current_timestamp or int(time.time())
-    params = {'from_date': timestamp}
-
-    ...
+    """Выполняет запрос к API."""
+    try:
+        timestamp = current_timestamp or int(time.time())
+        params = {'from_date': timestamp}
+        homework_statuses = requests.get(
+            ENDPOINT, headers=HEADERS, params=params)
+    except Exception as error:
+        logging.error(f"Ошибка при запросе к API: {error}")
+    else:
+        if homework_statuses.status_code != HTTPStatus.OK:
+            error_message = "Статус страницы не OK"
+            raise requests.HTTPError(error_message)
+        return homework_statuses.json()
 
 
 def check_response(response):
-
-    ...
+    """проверяет ответ API на корректность.
+    Возвращает список домашних работ."""
+    if not isinstance(response, dict):
+        raise TypeError('В ответ от сервиса API нет корректных данных.')
+    if 'homeworks' not in response:
+        raise KeyError('Нет ключа homeworks в ответе от сервиса API')
+    homeworks = response['homeworks']
+    if not isinstance(response['homeworks'], list):
+        raise TypeError('Домашняя работа нет представлена списком.')
+    return homeworks
 
 
 def parse_status(homework):
-    homework_name = ...
-    homework_status = ...
-
-    ...
-
-    verdict = ...
-
-    ...
-
+    """Извлекает статус домашней работы."""
+    homework_name = homework.get("homework_name")
+    homework_status = homework.get("status")
+    verdict = HOMEWORK_STATUSES[homework_status]
+    if not verdict:
+        message_verdict = "Такого статуса нет в словаре"
+        raise KeyError(message_verdict)
+    if homework_status not in HOMEWORK_STATUSES:
+        message_homework_status = "Такого статуса не существует"
+        raise KeyError(message_homework_status)
+    if "homework_name" not in homework:
+        message_homework_name = "Такого имени не существует"
+        raise KeyError(message_homework_name)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
-    ...
+    """Проверяет доступность переменных."""
+    tokens = all([TELEGRAM_TOKEN, PRACTICUM_TOKEN, TELEGRAM_CHAT_ID])
+    return tokens
 
 
 def main():
     """Основная логика работы бота."""
-
-    ...
-
+    if not check_tokens():
+        raise ValueError('Проверьте значение токенов')
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
-
-    ...
-
     while True:
         try:
-            response = ...
-
-            ...
-
-            current_timestamp = ...
+            response = get_api_answer(current_timestamp)
+            homeworks = check_response(response)
+            message = parse_status(homeworks)
+            if not homeworks:
+                logging.info("Новые статусы отсутствуют.")
+            else:
+                send_message(bot, message)
+            current_timestamp = response.get(
+                'current_date', current_timestamp
+            )
             time.sleep(RETRY_TIME)
-
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            ...
+            f'Сбой в работе программы: {error}'
+            send_message(bot, message=f'Сбой в работе программы: {error}')
             time.sleep(RETRY_TIME)
         else:
-            ...
+            logging.error("Сбой, ошибка не найдена")
 
 
 if __name__ == '__main__':
