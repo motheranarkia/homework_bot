@@ -27,7 +27,7 @@ HOMEWORK_STATUSES = {
 
 
 def send_message(bot, message):
-    """отправляет сообщение в Telegram чат"""
+    """Отправляет сообщение в Telegram чат."""
     return bot.send_message(TELEGRAM_CHAT_ID, message)
 
 
@@ -48,8 +48,7 @@ def get_api_answer(current_timestamp):
 
 
 def check_response(response):
-    """проверяет ответ API на корректность.
-    Возвращает список домашних работ."""
+    """проверяет API на корректность, возвращает список домашних работ."""
     if not isinstance(response, dict):
         raise TypeError('В ответ от сервиса API нет корректных данных.')
     if 'homeworks' not in response:
