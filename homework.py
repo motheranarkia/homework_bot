@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from telegram import Bot
 
 load_dotenv()
+
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
@@ -50,12 +51,12 @@ def get_api_answer(current_timestamp):
 def check_response(response):
     """проверяет API на корректность, возвращает список домашних работ."""
     if not isinstance(response, dict):
-        raise TypeError('В ответ от сервиса API нет корректных данных.')
+        raise TypeError('Некорректные данные')
     if 'homeworks' not in response:
         raise KeyError('Нет ключа homeworks в ответе от сервиса API')
     homeworks = response['homeworks']
     if not isinstance(response['homeworks'], list):
-        raise TypeError('Домашняя работа нет представлена списком.')
+        raise TypeError('homeworks пришел не списком.')
     return homeworks
 
 
@@ -64,9 +65,6 @@ def parse_status(homework):
     homework_name = homework.get("homework_name")
     homework_status = homework.get("status")
     verdict = HOMEWORK_STATUSES[homework_status]
-    if not verdict:
-        message_verdict = "Такого статуса нет в словаре"
-        raise KeyError(message_verdict)
     if homework_status not in HOMEWORK_STATUSES:
         message_homework_status = "Такого статуса не существует"
         raise KeyError(message_homework_status)
@@ -85,7 +83,7 @@ def check_tokens():
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        raise ValueError('Проверьте значение токенов')
+        raise ValueError('Ошибка в значении токенов')
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     while True:
@@ -106,7 +104,7 @@ def main():
             send_message(bot, message=f'Сбой в работе программы: {error}')
             time.sleep(RETRY_TIME)
         else:
-            logging.error("Сбой, ошибка не найдена")
+            logging.error("Oшибка не найдена")
 
 
 if __name__ == '__main__':
