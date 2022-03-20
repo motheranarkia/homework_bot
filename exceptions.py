@@ -1,0 +1,2 @@
+class ApiAnswerNotOK(ConnectionError):
+    pass

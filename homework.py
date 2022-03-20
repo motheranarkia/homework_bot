@@ -1,11 +1,15 @@
 import time
 import logging
 import os
+import sys
+from http import HTTPStatus
+
 import requests
 import telegram
-
-from http import HTTPStatus
+from telegram.error import TelegramError
 from dotenv import load_dotenv
+
+import exceptions
 
 load_dotenv()
 
@@ -26,7 +30,12 @@ HOMEWORK_STATUSES = {
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат."""
-    return bot.send_message(TELEGRAM_CHAT_ID, message)
+    try:
+        bot.send_message(TELEGRAM_CHAT_ID, message)
+    except TelegramError as error:
+        logging.error(f'Сбой при отправке сообщения: {error}')
+    else:
+        logging.info(f'Сообщение переслано в Telegram: {message}')
 
 
 def get_api_answer(current_timestamp):
@@ -35,13 +44,13 @@ def get_api_answer(current_timestamp):
         timestamp = current_timestamp or int(time.time())
         params = {'from_date': timestamp}
         homework_statuses = requests.get(
-            ENDPOINT, headers=HEADERS, params=params)
+            ENDPOINT, headers=HEADERS, params=params
+        )
     except Exception as error:
         logging.error(f"Ошибка при запросе к API: {error}")
     else:
         if homework_statuses.status_code != HTTPStatus.OK:
-            error_message = "Статус страницы не OK"
-            raise requests.HTTPError(error_message)
+            raise exceptions.ApiAnswerNotOK('Ошибка соединения')
         return homework_statuses.json()
 
 
@@ -59,28 +68,28 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекает статус домашней работы."""
-    homework_name = homework.get("homework_name")
-    homework_status = homework.get("status")
-    verdict = HOMEWORK_STATUSES[homework_status]
-    if homework_status not in HOMEWORK_STATUSES:
-        message_homework_status = "Такого статуса не существует"
-        raise KeyError(message_homework_status)
+    homework_name = homework.get('homework_name')
     if "homework_name" not in homework:
-        message_homework_name = "Такого имени не существует"
+        message_homework_name = 'Такого имени не существует'
         raise KeyError(message_homework_name)
+    homework_status = homework.get('status')
+    if homework_status not in HOMEWORK_STATUSES:
+        message_homework_status = 'Такого статуса не существует'
+        raise KeyError(message_homework_status)
+    verdict = HOMEWORK_STATUSES[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
 def check_tokens():
     """Проверяет доступность переменных."""
-    tokens = all([TELEGRAM_TOKEN, PRACTICUM_TOKEN, TELEGRAM_CHAT_ID])
-    return tokens
+    return all(([TELEGRAM_TOKEN, PRACTICUM_TOKEN, TELEGRAM_CHAT_ID]))
 
 
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        raise ValueError('Ошибка в значении токенов')
+        logging.critical('Отсутствуют переменные окружения!')
+        sys.exit()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     while True:
@@ -89,20 +98,24 @@ def main():
             homeworks = check_response(response)
             message = parse_status(homeworks)
             if not homeworks:
-                logging.info("Новые статусы отсутствуют.")
+                logging.info('Новые статусы отсутствуют.')
             else:
                 send_message(bot, message)
             current_timestamp = response.get(
                 'current_date', current_timestamp
             )
-            time.sleep(RETRY_TIME)
         except Exception as error:
             f'Сбой в работе программы: {error}'
+            logging.error(f'Сбой в работе программы: {error}')
             send_message(bot, message=f'Сбой в работе программы: {error}')
-            time.sleep(RETRY_TIME)
         else:
-            logging.error("Oшибка не найдена")
+            logging.error('Oшибка не найдена')
+        finally:
+            time.sleep(RETRY_TIME)
 
 
 if __name__ == '__main__':
+    logging.Formatter(
+        '%(asctime)s : [%(levelname)s] [%(lineno)d] : %(message)s'
+    )
     main()
