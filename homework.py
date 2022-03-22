@@ -6,7 +6,6 @@ from http import HTTPStatus
 
 import requests
 import telegram
-from telegram.error import TelegramError
 from dotenv import load_dotenv
 
 import exceptions
@@ -32,10 +31,9 @@ def send_message(bot, message):
     """Отправляет сообщение в Telegram чат."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-    except TelegramError as error:
-        logging.error(f'Сбой при отправке сообщения: {error}')
-    else:
-        logging.info(f'Сообщение переслано в Telegram: {message}')
+        logging.info('Сообщение отправлено в Telegram')
+    except Exception:
+        logging.error('Сбой при отправке сообщения')
 
 
 def get_api_answer(current_timestamp):
@@ -46,12 +44,11 @@ def get_api_answer(current_timestamp):
         homework_statuses = requests.get(
             ENDPOINT, headers=HEADERS, params=params
         )
-    except Exception as error:
-        logging.error(f"Ошибка при запросе к API: {error}")
-    else:
+    except Exception:
         if homework_statuses.status_code != HTTPStatus.OK:
-            raise exceptions.ApiAnswerNotOK('Ошибка соединения')
-        return homework_statuses.json()
+            raise exceptions.ApiAnswerNotOK('Код ответа отличается от 200')
+        else:
+            raise exceptions.ApiAnswerNotOK('Сбой при запросе к API')
 
 
 def check_response(response):
@@ -69,7 +66,7 @@ def check_response(response):
 def parse_status(homework):
     """Извлекает статус домашней работы."""
     homework_name = homework.get('homework_name')
-    if "homework_name" not in homework:
+    if 'homework_name' not in homework:
         message_homework_name = 'Такого имени не существует'
         raise KeyError(message_homework_name)
     homework_status = homework.get('status')
@@ -101,15 +98,15 @@ def main():
                 logging.info('Новые статусы отсутствуют.')
             else:
                 send_message(bot, message)
+
             current_timestamp = response.get(
                 'current_date', current_timestamp
             )
+
         except Exception as error:
             f'Сбой в работе программы: {error}'
             logging.error(f'Сбой в работе программы: {error}')
             send_message(bot, message=f'Сбой в работе программы: {error}')
-        else:
-            logging.error('Oшибка не найдена')
         finally:
             time.sleep(RETRY_TIME)
 
