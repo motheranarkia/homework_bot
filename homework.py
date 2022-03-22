@@ -45,10 +45,11 @@ def get_api_answer(current_timestamp):
             ENDPOINT, headers=HEADERS, params=params
         )
     except Exception:
+        raise exceptions.ApiAnswerNotOK('Сбой при запросе к API')
+    else:
         if homework_statuses.status_code != HTTPStatus.OK:
-            raise exceptions.ApiAnswerNotOK('Код ответа отличается от 200')
-        else:
-            raise exceptions.ApiAnswerNotOK('Сбой при запросе к API')
+            raise exceptions.ApiAnswerNotOK('Ошибка соединения')
+        return homework_statuses.json()
 
 
 def check_response(response):
