@@ -33,7 +33,7 @@ def send_message(bot, message):
         bot.send_message(TELEGRAM_CHAT_ID, message)
         logging.info('Сообщение отправлено в Telegram')
     except Exception:
-        logging.error('Сбой при отправке сообщения')
+        raise telegram.TelegramError("Сообщение не отправлено")
 
 
 def get_api_answer(current_timestamp):
@@ -105,9 +105,11 @@ def main():
             )
 
         except Exception as error:
-            f'Сбой в работе программы: {error}'
-            logging.error(f'Сбой в работе программы: {error}')
-            send_message(bot, message=f'Сбой в работе программы: {error}')
+            message = f'Сбой в работе программы: {error}',
+            logging.error(message)
+        else:
+            logging.error('Сбой, ошибка не определена')
+
         finally:
             time.sleep(RETRY_TIME)
 
